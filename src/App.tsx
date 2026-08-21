@@ -608,6 +608,39 @@ export default function App() {
         console.warn("CRM Webhook fetch notice:", crmErr);
       }
 
+      // 4. AiSensy WhatsApp Campaign direct trigger (fallback if backend /api/register was not reached)
+      if (!backendSuccess) {
+        try {
+          const cleanNum = whatsAppNumber.replace(/\D/g, "");
+          const destination = cleanNum.length === 10 ? `91${cleanNum}` : cleanNum;
+          await fetch("https://backend.aisensy.com/campaign/t1/api/v2", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              apiKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhMjgxY2U5ZGQ0ZmM1MTQzMzdhNTEzYiIsIm5hbWUiOiJBbWJlZGthciBBY2FkZW15IiwiYXBwTmFtZSI6IkFpU2Vuc3kiLCJjbGllbnRJZCI6IjZhMjgxY2U4ZGQ0ZmM1MTQzMzdhNTEzNiIsImFjdGl2ZVBsYW4iOiJCQVNJQ19NT05USExZIiwiaWF0IjoxNzg3MzI2NTk2fQ.a5LrcjI49BuAywE0hu2kp8Dl-0M7SYIZDEuBby_ydqI",
+              campaignName: "thanks msg for registrents",
+              destination,
+              userName: fullName || "Ambedkar Academy",
+              templateParams: [],
+              source: "new-landing-page form",
+              media: {
+                url: "https://d3jt6ku4g6z5l8.cloudfront.net/IMAGE/6353da2e153a147b991dd812/4958901_highanglekidcheatingschooltestmin.jpg",
+                filename: "sample_media",
+              },
+              buttons: [],
+              carouselCards: [],
+              location: {},
+              attributes: {},
+              paramsFallbackValue: {},
+            }),
+          });
+        } catch (aisensyClientErr) {
+          console.warn("Direct AiSensy fetch notice:", aisensyClientErr);
+        }
+      }
+
       // Since we are using no-cors, we can't check response.json().
       // Assuming success if fetch didn't throw.
       // Store in localStorage to prevent duplicate submissions from this device

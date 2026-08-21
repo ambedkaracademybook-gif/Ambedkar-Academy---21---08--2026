@@ -189,12 +189,16 @@ async function startServer() {
       // Dispatch WhatsApp message via AiSensy Campaign API
       let aiSensyStatus = "not_configured";
       const AISENSY_CONFIG_FILE = path.join(DATA_DIR, "aisensy_config.json");
+      const DEFAULT_AISENSY_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhMjgxY2U5ZGQ0ZmM1MTQzMzdhNTEzYiIsIm5hbWUiOiJBbWJlZGthciBBY2FkZW15IiwiYXBwTmFtZSI6IkFpU2Vuc3kiLCJjbGllbnRJZCI6IjZhMjgxY2U4ZGQ0ZmM1MTQzMzdhNTEzNiIsImFjdGl2ZVBsYW4iOiJCQVNJQ19NT05USExZIiwiaWF0IjoxNzg3MzI2NTk2fQ.a5LrcjI49BuAywE0hu2kp8Dl-0M7SYIZDEuBby_ydqI";
       let aiSensyApiKey = process.env.AISENSY_API_KEY || "";
       if (!aiSensyApiKey && fs.existsSync(AISENSY_CONFIG_FILE)) {
         try {
           const cfg = JSON.parse(fs.readFileSync(AISENSY_CONFIG_FILE, "utf-8"));
           aiSensyApiKey = cfg.apiKey || "";
         } catch (e) {}
+      }
+      if (!aiSensyApiKey) {
+        aiSensyApiKey = DEFAULT_AISENSY_KEY;
       }
 
       if (aiSensyApiKey && aiSensyApiKey.trim() !== "") {
@@ -207,7 +211,7 @@ async function startServer() {
             campaignName: "thanks msg for registrents",
             destination,
             userName: fullName || "Ambedkar Academy",
-            templateParams: [fullName || "Student"],
+            templateParams: [],
             source: "new-landing-page form",
             media: {
               url: "https://d3jt6ku4g6z5l8.cloudfront.net/IMAGE/6353da2e153a147b991dd812/4958901_highanglekidcheatingschooltestmin.jpg",
@@ -305,6 +309,7 @@ async function startServer() {
         return res.status(400).json({ success: false, error: "Destination phone number is required" });
       }
       const AISENSY_CONFIG_FILE = path.join(DATA_DIR, "aisensy_config.json");
+      const DEFAULT_AISENSY_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhMjgxY2U5ZGQ0ZmM1MTQzMzdhNTEzYiIsIm5hbWUiOiJBbWJlZGthciBBY2FkZW15IiwiYXBwTmFtZSI6IkFpU2Vuc3kiLCJjbGllbnRJZCI6IjZhMjgxY2U4ZGQ0ZmM1MTQzMzdhNTEzNiIsImFjdGl2ZVBsYW4iOiJCQVNJQ19NT05USExZIiwiaWF0IjoxNzg3MzI2NTk2fQ.a5LrcjI49BuAywE0hu2kp8Dl-0M7SYIZDEuBby_ydqI";
       let activeKey = overrideKey || process.env.AISENSY_API_KEY || "";
       if (!activeKey && fs.existsSync(AISENSY_CONFIG_FILE)) {
         try {
@@ -313,7 +318,7 @@ async function startServer() {
         } catch (e) {}
       }
       if (!activeKey) {
-        return res.status(400).json({ success: false, error: "No AiSensy API key found. Please save a key or set AISENSY_API_KEY." });
+        activeKey = DEFAULT_AISENSY_KEY;
       }
 
       const cleanNum = destination.replace(/\D/g, "");
@@ -324,7 +329,7 @@ async function startServer() {
         campaignName: "thanks msg for registrents",
         destination: formattedDest,
         userName: "Ambedkar Academy",
-        templateParams: ["Aspirant"],
+        templateParams: [],
         source: "new-landing-page form",
         media: {
           url: "https://d3jt6ku4g6z5l8.cloudfront.net/IMAGE/6353da2e153a147b991dd812/4958901_highanglekidcheatingschooltestmin.jpg",
