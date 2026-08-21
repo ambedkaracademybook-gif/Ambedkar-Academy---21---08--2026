@@ -1,0 +1,41 @@
+{
+  "entities": {
+    "Registration": {
+      "title": "Registration",
+      "description": "Workshop registrations and leads",
+      "type": "object",
+      "properties": {
+        "fullName": { "type": "string" },
+        "whatsappNumber": { "type": "string" },
+        "targetExam": { "type": "string" },
+        "currentPosition": { "type": "string" },
+        "district": { "type": "string" },
+        "attendedCoachingBefore": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "syncedToSheets": { "type": "boolean" }
+      },
+      "required": ["fullName", "whatsappNumber", "targetExam", "currentPosition", "district"]
+    },
+    "AppConfig": {
+      "title": "AppConfig",
+      "description": "Global application configuration and sheets link settings",
+      "type": "object",
+      "properties": {
+        "spreadsheetId": { "type": "string" },
+        "spreadsheetUrl": { "type": "string" },
+        "sheetTitle": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      }
+    }
+  },
+  "firestore": {
+    "/registrations/{registrationId}": {
+      "schema": "Registration",
+      "description": "Public submissions for workshop registrations"
+    },
+    "/config/{configId}": {
+      "schema": "AppConfig",
+      "description": "Settings for sheets integration"
+    }
+  }
+}
