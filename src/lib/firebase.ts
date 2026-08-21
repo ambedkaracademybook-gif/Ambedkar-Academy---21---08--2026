@@ -35,6 +35,7 @@ export const CONFIG_COLLECTION = "config";
 export interface RegistrationData {
   id?: string;
   fullName: string;
+  email?: string;
   whatsappNumber: string;
   targetExam: string;
   currentPosition: string;

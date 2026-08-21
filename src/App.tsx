@@ -16,6 +16,7 @@ import {
   Gift,
   Target,
   Phone,
+  Mail,
   Sparkles,
   ChevronRight,
   ChevronLeft,
@@ -133,6 +134,7 @@ export default function App() {
           if (key && !map.has(key)) {
             map.set(key, {
               ...item,
+              email: item.email || item.emailId || "",
               whatsAppNumber: item.whatsappNumber || item.whatsAppNumber,
               location: item.district || item.location,
               preparingFor: item.targetExam || item.preparingFor,
@@ -428,6 +430,7 @@ export default function App() {
 
   // Form inputs
   const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
   const [whatsAppNumber, setWhatsAppNumber] = useState("");
   const [preparingFor, setPreparingFor] = useState("");
   const [currentPosition, setCurrentPosition] = useState("");
@@ -500,6 +503,15 @@ export default function App() {
       setFormError("Please enter your Full Name.");
       return;
     }
+    if (!email.trim()) {
+      setFormError("Please enter your Email Address.");
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      setFormError("Please enter a valid Email Address.");
+      return;
+    }
     if (whatsAppNumber.length !== 10) {
       setFormError("Please enter a valid 10-digit WhatsApp Number.");
       return;
@@ -524,122 +536,78 @@ export default function App() {
     setIsLoading(true);
 
     try {
-      // 1. Save directly to Firebase Firestore for permanent cloud storage
-      try {
-        await saveRegistrationToFirestore({
-          fullName,
-          whatsappNumber: whatsAppNumber,
-          targetExam: preparingFor,
-          currentPosition,
-          attendedCoachingBefore: previousCoaching,
-          district: location
-        });
-      } catch (firestoreErr) {
-        console.warn("Firestore registration save notice:", firestoreErr);
-      }
+      const regPayload = {
+        fullName: fullName.trim(),
+        email: email.trim(),
+        whatsAppNumber: whatsAppNumber.trim(),
+        preparingFor,
+        currentPosition,
+        previousCoaching,
+        location: location.trim(),
+        timestamp: new Date().toLocaleString(),
+      };
 
-      // 2. Post to backend server (/api/register) which handles local JSON storage & Google Sheets sync (Direct OAuth / Apps Script Webhook)
-      let backendSuccess = false;
-      try {
-        const backendRes = await fetch("/api/register", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            fullName,
-            whatsAppNumber,
-            preparingFor,
-            currentPosition,
-            previousCoaching,
-            location,
-          }),
-        });
-        if (backendRes.ok) {
-          backendSuccess = true;
-        }
-      } catch (err) {
-        console.warn("Backend registration endpoint notice:", err);
-      }
+      // Fire all async tasks simultaneously (in parallel with timeout) for blazing fast submission
+      const firestoreTask = saveRegistrationToFirestore({
+        fullName: regPayload.fullName,
+        email: regPayload.email,
+        whatsappNumber: regPayload.whatsAppNumber,
+        targetExam: regPayload.preparingFor,
+        currentPosition: regPayload.currentPosition,
+        attendedCoachingBefore: regPayload.previousCoaching,
+        district: regPayload.location,
+      }).catch((e) => console.warn("Firestore notice:", e));
 
-      // 2. Direct submission to Google Apps Script Web App (only if backend sync wasn't already handled)
-      if (!backendSuccess) {
-        const GOOGLE_SHEET_URL = "https://script.google.com/macros/s/AKfycbxCTs_bMnrR3LV-UwSB9VOKtaQtW063tfeHNqi91XgivuFFivr-8njptAAobAwOVoMpdA/exec";
-        try {
-          await fetch(GOOGLE_SHEET_URL, {
-            method: "POST",
-            mode: "no-cors",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              fullName,
-              whatsAppNumber,
-              preparingFor,
-              currentPosition,
-              previousCoaching,
-              location,
-              timestamp: new Date().toLocaleString(),
-            }),
-          });
-        } catch (scriptErr) {
-          console.warn("Direct Apps Script fetch notice:", scriptErr);
-        }
-      }
+      // Backend handles server-side duplicate check, Google Sheets forwarding, and AiSensy
+      const backendTask = fetch("/api/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(regPayload),
+      }).catch((e) => console.warn("Backend register notice:", e));
 
-      // 3. Submission to CRM Webhook
       const CRM_WEBHOOK_URL = "https://us-central1-dealclosure-crm.cloudfunctions.net/dealConverterCrmWebhook?webhookId=4nyyEdcYaMzfxRAzlY88";
-      try {
-        await fetch(CRM_WEBHOOK_URL, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            contact_name: fullName,
-            mobile: whatsAppNumber,
-            preparing_for: preparingFor,
-            current_position: currentPosition,
-            attended_coaching_before: previousCoaching,
-            your_location: location,
-          }),
-        });
-      } catch (crmErr) {
-        console.warn("CRM Webhook fetch notice:", crmErr);
-      }
+      const crmTask = fetch(CRM_WEBHOOK_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contact_name: regPayload.fullName,
+          email: regPayload.email,
+          mobile: regPayload.whatsAppNumber,
+          preparing_for: regPayload.preparingFor,
+          current_position: regPayload.currentPosition,
+          attended_coaching_before: regPayload.previousCoaching,
+          your_location: regPayload.location,
+        }),
+      }).catch((e) => console.warn("CRM notice:", e));
 
-      // 4. AiSensy WhatsApp Campaign direct trigger (fallback if backend /api/register was not reached)
-      if (!backendSuccess) {
-        try {
-          const cleanNum = whatsAppNumber.replace(/\D/g, "");
-          const destination = cleanNum.length === 10 ? `91${cleanNum}` : cleanNum;
-          const userFirstName = (fullName || "").trim().split(" ")[0] || fullName || "user";
-          await fetch("https://backend.aisensy.com/campaign/t1/api/v2", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              apiKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhMjgxY2U5ZGQ0ZmM1MTQzMzdhNTEzYiIsIm5hbWUiOiJBbWJlZGthciBBY2FkZW15IiwiYXBwTmFtZSI6IkFpU2Vuc3kiLCJjbGllbnRJZCI6IjZhMjgxY2U4ZGQ0ZmM1MTQzMzdhNTEzNiIsImFjdGl2ZVBsYW4iOiJCQVNJQ19NT05USExZIiwiaWF0IjoxNzg3MzI2NTk2fQ.a5LrcjI49BuAywE0hu2kp8Dl-0M7SYIZDEuBby_ydqI",
-              campaignName: "freefunnel",
-              destination,
-              userName: "Ambedkar Academy",
-              templateParams: [userFirstName],
-              source: "new-landing-page form",
-              media: {},
-              buttons: [],
-              carouselCards: [],
-              location: {},
-              attributes: {},
-              paramsFallbackValue: {
-                FirstName: "user",
-              },
-            }),
-          });
-        } catch (aisensyClientErr) {
-          console.warn("Direct AiSensy fetch notice:", aisensyClientErr);
-        }
-      }
+      // AiSensy fallback
+      const cleanNum = regPayload.whatsAppNumber.replace(/\D/g, "");
+      const destination = cleanNum.length === 10 ? `91${cleanNum}` : cleanNum;
+      const userFirstName = regPayload.fullName.split(" ")[0] || "user";
+      const aisensyTask = fetch("https://backend.aisensy.com/campaign/t1/api/v2", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          apiKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhMjgxY2U5ZGQ0ZmM1MTQzMzdhNTEzYiIsIm5hbWUiOiJBbWJlZGthciBBY2FkZW15IiwiYXBwTmFtZSI6IkFpU2Vuc3kiLCJjbGllbnRJZCI6IjZhMjgxY2U4ZGQ0ZmM1MTQzMzdhNTEzNiIsImFjdGl2ZVBsYW4iOiJCQVNJQ19NT05USExZIiwiaWF0IjoxNzg3MzI2NTk2fQ.a5LrcjI49BuAywE0hu2kp8Dl-0M7SYIZDEuBby_ydqI",
+          campaignName: "freefunnel",
+          destination,
+          userName: "Ambedkar Academy",
+          templateParams: [userFirstName],
+          source: "new-landing-page form",
+          media: {},
+          buttons: [],
+          carouselCards: [],
+          location: {},
+          attributes: {},
+          paramsFallbackValue: { FirstName: "user" },
+        }),
+      }).catch((e) => console.warn("Direct AiSensy notice:", e));
+
+      // Wait maximum 1.5 seconds or until primary tasks complete so user gets instant feedback
+      await Promise.race([
+        Promise.allSettled([firestoreTask, backendTask, crmTask, aisensyTask]),
+        new Promise((resolve) => setTimeout(resolve, 1500)),
+      ]);
 
       // Since we are using no-cors, we can't check response.json().
       // Assuming success if fetch didn't throw.
@@ -1019,6 +987,7 @@ export default function App() {
                       <tr className="bg-slate-950/80 text-[10px] font-black uppercase tracking-wider text-slate-400 border-b border-slate-800">
                         <th className="py-3 px-4">#</th>
                         <th className="py-3.5 px-4">Name</th>
+                        <th className="py-3.5 px-4">Email</th>
                         <th className="py-3.5 px-4">WhatsApp</th>
                         <th className="py-3.5 px-4">Exam Goal</th>
                         <th className="py-3.5 px-4">Current Position</th>
@@ -1032,6 +1001,9 @@ export default function App() {
                           <tr key={lead.id || index} className="hover:bg-slate-900/30 transition duration-100">
                             <td className="py-3.5 px-4 font-mono text-slate-500 text-[11px]">{index + 1}</td>
                             <td className="py-3.5 px-4 font-black text-white">{lead.fullName}</td>
+                            <td className="py-3.5 px-4 text-slate-300 font-medium">
+                              {lead.email || <span className="text-slate-500 italic">—</span>}
+                            </td>
                             <td className="py-3.5 px-4 font-mono text-slate-300">
                               +91 {lead.whatsAppNumber}
                             </td>
@@ -1057,7 +1029,7 @@ export default function App() {
                         ))
                       ) : (
                         <tr>
-                          <td colSpan={7} className="py-12 text-center text-slate-500 font-bold">
+                          <td colSpan={8} className="py-12 text-center text-slate-500 font-bold">
                             No registrations found matching the criteria.
                           </td>
                         </tr>
@@ -1393,6 +1365,27 @@ export default function App() {
                         placeholder="Your full name"
                         value={fullName}
                         onChange={(e) => setFullName(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 text-white placeholder-slate-500 rounded-xl pl-10 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-400 transition-all duration-200 font-medium"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Email ID field */}
+                  <div>
+                    <label htmlFor="email-input" className="block text-xs font-bold text-slate-300 uppercase tracking-wide mb-1.5">
+                      Email Address *
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-500">
+                        <Mail className="w-4 h-4" />
+                      </span>
+                      <input
+                        id="email-input"
+                        type="email"
+                        required
+                        placeholder="yourname@example.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
                         className="w-full bg-slate-950 border border-slate-800 text-white placeholder-slate-500 rounded-xl pl-10 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-400 transition-all duration-200 font-medium"
                       />
                     </div>

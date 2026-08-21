@@ -25,6 +25,7 @@ async function startServer() {
     try {
       const {
         fullName,
+        email,
         whatsAppNumber,
         preparingFor,
         currentPosition,
@@ -56,6 +57,7 @@ async function startServer() {
         id: registrations.length + 1,
         timestamp,
         fullName,
+        email: email || "",
         whatsAppNumber,
         preparingFor,
         currentPosition,
@@ -81,7 +83,7 @@ async function startServer() {
       let sheetStatus = "not_configured";
       const SHEETS_CONFIG_FILE = path.join(DATA_DIR, "sheets_config.json");
 
-      console.log(`[Registration] New lead received: ${fullName} (${whatsAppNumber})`);
+      console.log(`[Registration] New lead received: ${fullName} (${whatsAppNumber}, Email: ${email || "N/A"})`);
 
       if (fs.existsSync(SHEETS_CONFIG_FILE)) {
         try {
@@ -93,6 +95,7 @@ async function startServer() {
           const range = `${sheetTitle}!A:A`;
           const rowData = [
             fullName,
+            email || "",
             whatsAppNumber,
             preparingFor,
             currentPosition,
@@ -147,6 +150,7 @@ async function startServer() {
           try {
             const sheetPayload = {
               fullName,
+              email: email || "",
               whatsAppNumber,
               preparingFor,
               currentPosition,
@@ -433,14 +437,16 @@ async function startServer() {
         sheetTitle = data.sheets?.[0]?.properties?.title || "Sheet1";
 
         // Write header row to the newly created spreadsheet
-        const headerRange = `${sheetTitle}!A1:F1`;
+        const headerRange = `${sheetTitle}!A1:H1`;
         const headers = [
           "Timestamp",
           "Full Name",
+          "Email ID",
           "WhatsApp Number",
           "Preparing For",
           "Current Position",
           "Previous Coaching",
+          "Location / District",
         ];
 
         const appendResponse = await fetch(
@@ -519,15 +525,17 @@ async function startServer() {
       const rows = registrations.map((r: any) => [
         r.timestamp,
         r.fullName,
+        r.email || "",
         r.whatsAppNumber,
         r.preparingFor,
         r.currentPosition,
         r.previousCoaching,
+        r.location || "",
       ]);
 
       // Clear the sheet first to avoid duplicate or ghost entries
       const clearResponse = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${sheetTitle}!A2:F10000:clear`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${sheetTitle}!A2:H10000:clear`,
         {
           method: "POST",
           headers: {
@@ -541,7 +549,7 @@ async function startServer() {
       }
 
       // Write values to the sheet starting from A2
-      const range = `${sheetTitle}!A2:F${1 + registrations.length}`;
+      const range = `${sheetTitle}!A2:H${1 + registrations.length}`;
       const updateResponse = await fetch(
         `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}?valueInputOption=USER_ENTERED`,
         {
