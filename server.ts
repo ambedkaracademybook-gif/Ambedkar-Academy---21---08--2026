@@ -206,22 +206,22 @@ async function startServer() {
           const cleanNum = (whatsAppNumber || "").replace(/\D/g, "");
           const destination = cleanNum.length === 10 ? `91${cleanNum}` : cleanNum;
 
+          const userFirstName = (fullName || "").trim().split(" ")[0] || fullName || "user";
           const aiSensyPayload = {
             apiKey: aiSensyApiKey.trim(),
-            campaignName: "thanks msg for registrents",
+            campaignName: "freefunnel",
             destination,
-            userName: fullName || "Ambedkar Academy",
-            templateParams: [],
+            userName: "Ambedkar Academy",
+            templateParams: [userFirstName],
             source: "new-landing-page form",
-            media: {
-              url: "https://d3jt6ku4g6z5l8.cloudfront.net/IMAGE/6353da2e153a147b991dd812/4958901_highanglekidcheatingschooltestmin.jpg",
-              filename: "sample_media",
-            },
+            media: {},
             buttons: [],
             carouselCards: [],
             location: {},
             attributes: {},
-            paramsFallbackValue: {},
+            paramsFallbackValue: {
+              FirstName: "user",
+            },
           };
 
           console.log(`[AiSensy WhatsApp] Sending confirmation message to destination ${destination}...`);
@@ -326,20 +326,19 @@ async function startServer() {
 
       const aiSensyPayload = {
         apiKey: activeKey.trim(),
-        campaignName: "thanks msg for registrents",
+        campaignName: "freefunnel",
         destination: formattedDest,
         userName: "Ambedkar Academy",
-        templateParams: [],
+        templateParams: ["user"],
         source: "new-landing-page form",
-        media: {
-          url: "https://d3jt6ku4g6z5l8.cloudfront.net/IMAGE/6353da2e153a147b991dd812/4958901_highanglekidcheatingschooltestmin.jpg",
-          filename: "sample_media",
-        },
+        media: {},
         buttons: [],
         carouselCards: [],
         location: {},
         attributes: {},
-        paramsFallbackValue: {},
+        paramsFallbackValue: {
+          FirstName: "user",
+        },
       };
 
       const aiSensyRes = await fetch("https://backend.aisensy.com/campaign/t1/api/v2", {

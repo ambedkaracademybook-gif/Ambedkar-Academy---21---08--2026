@@ -613,6 +613,7 @@ export default function App() {
         try {
           const cleanNum = whatsAppNumber.replace(/\D/g, "");
           const destination = cleanNum.length === 10 ? `91${cleanNum}` : cleanNum;
+          const userFirstName = (fullName || "").trim().split(" ")[0] || fullName || "user";
           await fetch("https://backend.aisensy.com/campaign/t1/api/v2", {
             method: "POST",
             headers: {
@@ -620,20 +621,19 @@ export default function App() {
             },
             body: JSON.stringify({
               apiKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhMjgxY2U5ZGQ0ZmM1MTQzMzdhNTEzYiIsIm5hbWUiOiJBbWJlZGthciBBY2FkZW15IiwiYXBwTmFtZSI6IkFpU2Vuc3kiLCJjbGllbnRJZCI6IjZhMjgxY2U4ZGQ0ZmM1MTQzMzdhNTEzNiIsImFjdGl2ZVBsYW4iOiJCQVNJQ19NT05USExZIiwiaWF0IjoxNzg3MzI2NTk2fQ.a5LrcjI49BuAywE0hu2kp8Dl-0M7SYIZDEuBby_ydqI",
-              campaignName: "thanks msg for registrents",
+              campaignName: "freefunnel",
               destination,
-              userName: fullName || "Ambedkar Academy",
-              templateParams: [],
+              userName: "Ambedkar Academy",
+              templateParams: [userFirstName],
               source: "new-landing-page form",
-              media: {
-                url: "https://d3jt6ku4g6z5l8.cloudfront.net/IMAGE/6353da2e153a147b991dd812/4958901_highanglekidcheatingschooltestmin.jpg",
-                filename: "sample_media",
-              },
+              media: {},
               buttons: [],
               carouselCards: [],
               location: {},
               attributes: {},
-              paramsFallbackValue: {},
+              paramsFallbackValue: {
+                FirstName: "user",
+              },
             }),
           });
         } catch (aisensyClientErr) {
