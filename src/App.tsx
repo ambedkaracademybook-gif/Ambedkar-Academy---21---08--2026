@@ -164,6 +164,7 @@ export default function App() {
   };
 
   useEffect(() => {
+    document.title = "ambedkaracademytnpsc";
     const fetchSheetsConfig = async () => {
       try {
         // Try Firestore first
@@ -558,7 +559,16 @@ export default function App() {
         district: regPayload.location,
       }).catch((e) => console.warn("Firestore notice:", e));
 
-      // Backend handles server-side duplicate check, Google Sheets forwarding, and AiSensy
+      // Direct Google Apps Script dispatch - ensures sheets capture works on ANY live hosted landing page/domain
+      const GOOGLE_SHEET_URL = "https://script.google.com/macros/s/AKfycbxCTs_bMnrR3LV-UwSB9VOKtaQtW063tfeHNqi91XgivuFFivr-8njptAAobAwOVoMpdA/exec";
+      const sheetTask = fetch(GOOGLE_SHEET_URL, {
+        method: "POST",
+        mode: "no-cors",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify(regPayload),
+      }).catch((e) => console.warn("Direct Sheet notice:", e));
+
+      // Backend handles server-side duplicate check, Google Sheets forwarding, and AiSensy (when running on full-stack container)
       const backendTask = fetch("/api/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -605,7 +615,7 @@ export default function App() {
 
       // Wait maximum 1.5 seconds or until primary tasks complete so user gets instant feedback
       await Promise.race([
-        Promise.allSettled([firestoreTask, backendTask, crmTask, aisensyTask]),
+        Promise.allSettled([firestoreTask, backendTask, sheetTask, crmTask, aisensyTask]),
         new Promise((resolve) => setTimeout(resolve, 1500)),
       ]);
 
