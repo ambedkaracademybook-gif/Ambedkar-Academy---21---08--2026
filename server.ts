@@ -47,9 +47,9 @@ async function startServer() {
         registrations = [];
       }
 
-      // Check duplicate using whatsAppNumber
+      // Check duplicate using whatsAppNumber or email
       const isDuplicate = registrations.some(
-        (r: any) => r.whatsAppNumber === whatsAppNumber
+        (r: any) => r.whatsAppNumber === whatsAppNumber || (r.email && r.email.toLowerCase() === email.toLowerCase())
       );
 
       const timestamp = new Date().toISOString();
@@ -66,12 +66,10 @@ async function startServer() {
       };
 
       if (isDuplicate) {
-        console.log(`[Registration] Duplicate lead received: ${fullName} (${whatsAppNumber}). Skipping database append & Google Sheets sync.`);
-        return res.status(200).json({
-          success: true,
-          message: "Seat reserved already",
-          sheetStatus: "duplicate_skipped",
-          leadId: -1,
+        console.log(`[Registration] Duplicate lead received: ${fullName} (${whatsAppNumber} / ${email}). Skipping database append & Google Sheets sync.`);
+        return res.status(409).json({
+          success: false,
+          error: "You have already applied. We have kept your seat reserved."
         });
       }
 
@@ -79,11 +77,20 @@ async function startServer() {
       registrations.push(newLead);
       fs.writeFileSync(DATA_FILE, JSON.stringify(registrations, null, 2));
 
-      // Forward to Google Sheets (Direct OAuth Integration) or Webhook Fallback
-      let sheetStatus = "not_configured";
-      const SHEETS_CONFIG_FILE = path.join(DATA_DIR, "sheets_config.json");
+      // Respond immediately to the client to make the form submission blazing fast
+      res.status(200).json({
+        success: true,
+        message: "Registration successful",
+        leadId: newLead.id,
+      });
 
-      console.log(`[Registration] New lead received: ${fullName} (${whatsAppNumber}, Email: ${email || "N/A"})`);
+      // Process slow external API integrations in the background
+      (async () => {
+        // Forward to Google Sheets (Direct OAuth Integration) or Webhook Fallback
+        let sheetStatus = "not_configured";
+        const SHEETS_CONFIG_FILE = path.join(DATA_DIR, "sheets_config.json");
+
+        console.log(`[Registration] New lead received: ${fullName} (${whatsAppNumber}, Email: ${email || "N/A"})`);
 
       if (fs.existsSync(SHEETS_CONFIG_FILE)) {
         try {
@@ -251,17 +258,14 @@ async function startServer() {
       } else {
         console.log("[AiSensy WhatsApp] No AISENSY_API_KEY provided; skipping WhatsApp notification.");
       }
-
-      return res.status(200).json({
-        success: true,
-        message: isDuplicate ? "Seat reserved already" : "Registration successful",
-        sheetStatus,
-        aiSensyStatus,
-        leadId: newLead.id,
-      });
+      
+      })();
     } catch (error: any) {
       console.error("Registration endpoint error:", error);
-      return res.status(500).json({ success: false, error: error.message });
+      // Only send error response if headers haven't been sent yet
+      if (!res.headersSent) {
+        return res.status(500).json({ success: false, error: error.message });
+      }
     }
   });
 

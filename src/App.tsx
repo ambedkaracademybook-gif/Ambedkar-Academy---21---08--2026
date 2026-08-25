@@ -490,10 +490,11 @@ export default function App() {
     e.preventDefault();
     if (isLoading) return; // Prevent double clicks
     
-    // Check for duplicate
+    // Check for duplicate locally
     const submittedNumbers = JSON.parse(localStorage.getItem("submittedNumbers") || "[]");
-    if (submittedNumbers.includes(whatsAppNumber)) {
-        setFormError("This WhatsApp number has already been registered.");
+    const submittedEmails = JSON.parse(localStorage.getItem("submittedEmails") || "[]");
+    if (submittedNumbers.includes(whatsAppNumber) || submittedEmails.includes(email.trim().toLowerCase())) {
+        setFormError("You have already applied. We have kept your seat reserved.");
         return;
     }
 
@@ -548,7 +549,25 @@ export default function App() {
         timestamp: new Date().toLocaleString(),
       };
 
-      // Fire all async tasks simultaneously (in parallel with timeout) for blazing fast submission
+      // 1. Primary backend check for duplicates (if running on full-stack container)
+      try {
+        const backendRes = await fetch("/api/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(regPayload),
+        });
+        
+        if (backendRes.status === 409) {
+          const data = await backendRes.json().catch(() => ({}));
+          setIsLoading(false);
+          setFormError(data.error || "You have already applied. We have kept your seat reserved.");
+          return;
+        }
+      } catch (e) {
+        console.warn("Backend register notice:", e);
+      }
+
+      // Fire remaining async tasks simultaneously for fast submission
       const firestoreTask = saveRegistrationToFirestore({
         fullName: regPayload.fullName,
         email: regPayload.email,
@@ -567,13 +586,6 @@ export default function App() {
         headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify(regPayload),
       }).catch((e) => console.warn("Direct Sheet notice:", e));
-
-      // Backend handles server-side duplicate check, Google Sheets forwarding, and AiSensy (when running on full-stack container)
-      const backendTask = fetch("/api/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(regPayload),
-      }).catch((e) => console.warn("Backend register notice:", e));
 
       const CRM_WEBHOOK_URL = "https://us-central1-dealclosure-crm.cloudfunctions.net/dealConverterCrmWebhook?webhookId=4nyyEdcYaMzfxRAzlY88";
       const crmTask = fetch(CRM_WEBHOOK_URL, {
@@ -613,10 +625,10 @@ export default function App() {
         }),
       }).catch((e) => console.warn("Direct AiSensy notice:", e));
 
-      // Wait maximum 1.5 seconds or until primary tasks complete so user gets instant feedback
+      // Wait maximum 0.5 seconds or until primary tasks complete so user gets instant feedback
       await Promise.race([
-        Promise.allSettled([firestoreTask, backendTask, sheetTask, crmTask, aisensyTask]),
-        new Promise((resolve) => setTimeout(resolve, 1500)),
+        Promise.allSettled([firestoreTask, sheetTask, crmTask, aisensyTask]),
+        new Promise((resolve) => setTimeout(resolve, 500)),
       ]);
 
       // Since we are using no-cors, we can't check response.json().
@@ -625,6 +637,10 @@ export default function App() {
       const submittedNumbers = JSON.parse(localStorage.getItem("submittedNumbers") || "[]");
       submittedNumbers.push(whatsAppNumber);
       localStorage.setItem("submittedNumbers", JSON.stringify(submittedNumbers));
+      
+      const submittedEmails = JSON.parse(localStorage.getItem("submittedEmails") || "[]");
+      submittedEmails.push(email.trim().toLowerCase());
+      localStorage.setItem("submittedEmails", JSON.stringify(submittedEmails));
       
       // Track Pixel Lead event if defined on window
       if ((window as any).fbq) {
